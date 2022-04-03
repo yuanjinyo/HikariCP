@@ -42,68 +42,201 @@ import static com.zaxxer.hikari.util.UtilityElf.safeIsAssignableFrom;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+/**
+ * HikariConfig配置类
+ */
 @SuppressWarnings({"SameParameterValue", "unused"})
-public class HikariConfig implements HikariConfigMXBean
-{
+public class HikariConfig implements HikariConfigMXBean {
+   /**
+    * 日志输出
+    */
    private static final Logger LOGGER = LoggerFactory.getLogger(HikariConfig.class);
-
+   /**
+    * 字符集
+    */
    private static final char[] ID_CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+   /**
+    * 连接超时 默认30s
+    */
    private static final long CONNECTION_TIMEOUT = SECONDS.toMillis(30);
+   /**
+    * 校验超时 默认5s
+    */
    private static final long VALIDATION_TIMEOUT = SECONDS.toMillis(5);
    private static final long SOFT_TIMEOUT_FLOOR = Long.getLong("com.zaxxer.hikari.timeoutMs.floor", 250L);
+   /**
+    * 空闲超时时间 默认10s
+    */
    private static final long IDLE_TIMEOUT = MINUTES.toMillis(10);
+   /**
+    * 最大存活时间 30s
+    */
    private static final long MAX_LIFETIME = MINUTES.toMillis(30);
+   /**
+    * 默认保持连接时间 默认0
+    */
    private static final long DEFAULT_KEEPALIVE_TIME = 0L;
+   /**
+    * 默认池大小 默认10
+    */
    private static final int DEFAULT_POOL_SIZE = 10;
-
+   /**
+    * 单元测试 默认false
+    */
    private static boolean unitTest = false;
 
    // Properties changeable at runtime through the HikariConfigMXBean
-   //
+   //可通过HikariConfigMXBean在运行时更改的属性
+   /**
+    * 目录日志
+    */
    private volatile String catalog;
+   /**
+    * 连接超时
+    */
    private volatile long connectionTimeout;
+   /**
+    * 校验超时
+    */
    private volatile long validationTimeout;
+   /**
+    * 空闲超时
+    */
    private volatile long idleTimeout;
+   /**
+    * 泄漏检测阈值
+    */
    private volatile long leakDetectionThreshold;
+   /**
+    * 最大存活时间
+    */
    private volatile long maxLifetime;
+   /**
+    * 连接池大小
+    */
    private volatile int maxPoolSize;
+   /**
+    * 最小空闲
+    */
    private volatile int minIdle;
+   /**
+    * 数据库用户名
+    */
    private volatile String username;
+   /**
+    * 数据库密码
+    */
    private volatile String password;
 
    // Properties NOT changeable at runtime
-   //
+   // 运行时不可更改的属性
+   /**
+    * 初始化失败超时
+    */
    private long initializationFailTimeout;
+   /**
+    * 初始化连接SQL
+    */
    private String connectionInitSql;
+   /**
+    * 测试连接查询SQL
+    */
    private String connectionTestQuery;
+   /**
+    * 数据源ClassName
+    */
    private String dataSourceClassName;
+   /**
+    * 数据源JndiName
+    */
    private String dataSourceJndiName;
+   /**
+    * 驱动器ClassName
+    */
    private String driverClassName;
+   /**
+    * 异常重写ClassName
+    */
    private String exceptionOverrideClassName;
+   /**
+    * JDBC URL
+    */
    private String jdbcUrl;
+   /**
+    * 池名称
+    */
    private String poolName;
+   /**
+    * 主题
+    */
    private String schema;
+   /**
+    * 事务隔离名称
+    */
    private String transactionIsolationName;
+   /**
+    * 事务自动提交
+    */
    private boolean isAutoCommit;
+   /**
+    * 是否只读
+    */
    private boolean isReadOnly;
+   /**
+    * 是否隔离内部查询
+    */
    private boolean isIsolateInternalQueries;
+   /**
+    * 是否注册JMX功能
+    */
    private boolean isRegisterMbeans;
+   /**
+    * 是否允许线程池暂停
+    */
    private boolean isAllowPoolSuspension;
+   /**
+    * 数据源
+    */
    private DataSource dataSource;
+   /**
+    * 数据源配置
+    */
    private Properties dataSourceProperties;
+   /**
+    * 线程工厂
+    */
    private ThreadFactory threadFactory;
+   /**
+    * 定时执行Service
+    */
    private ScheduledExecutorService scheduledExecutor;
+   /**
+    * 指标跟踪工厂
+    */
    private MetricsTrackerFactory metricsTrackerFactory;
+   /**
+    * JMX注册
+    */
    private Object metricRegistry;
+   /**
+    * 健康检查注册
+    */
    private Object healthCheckRegistry;
+   /**
+    * 健康检查配置
+    */
    private Properties healthCheckProperties;
-
+   /**
+    * 存活时间
+    */
    private long keepaliveTime;
-
+   /**
+    * 密封
+    */
    private volatile boolean sealed;
 
    /**
-    * Default constructor
+    * 默认构造器
     */
    public HikariConfig()
    {
@@ -128,7 +261,7 @@ public class HikariConfig implements HikariConfigMXBean
 
    /**
     * Construct a HikariConfig from the specified properties object.
-    *
+    * 有参构造
     * @param properties the name of the property file
     */
    public HikariConfig(Properties properties)
