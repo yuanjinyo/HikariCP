@@ -25,25 +25,35 @@ import java.util.regex.Pattern;
 
 /**
  * A class that reflectively sets bean properties on a target object.
- *
+ * 在目标对象上反射设置bean属性的类
  * @author Brett Wooldridge
  */
 public final class PropertyElf
 {
    private static final Pattern GETTER_PATTERN = Pattern.compile("(get|is)[A-Z].+");
 
+   /**
+    * private不允许空参构造
+    */
    private PropertyElf() {
       // cannot be constructed
    }
 
+   /**
+    * 通过配置文件设置Target属性
+    * @param target 目标类
+    * @param properties 配置文件
+    */
    public static void setTargetFromProperties(final Object target, final Properties properties)
    {
       if (target == null || properties == null) {
          return;
       }
-
+      //获取目标类的methods列表
       var methods = Arrays.asList(target.getClass().getMethods());
+      //遍历Properties文件
       properties.forEach((key, value) -> {
+         //目标类 instanceof HikariConfig && 前缀为dataSource.
          if (target instanceof HikariConfig && key.toString().startsWith("dataSource.")) {
             ((HikariConfig) target).addDataSourceProperty(key.toString().substring("dataSource.".length()), value);
          }
@@ -55,9 +65,9 @@ public final class PropertyElf
 
    /**
     * Get the bean-style property names for the specified object.
-    *
-    * @param targetClass the target object
-    * @return a set of property names
+    * 获取指定对象的bean样式属性名称
+    * @param targetClass the target object 目标类
+    * @return a set of property names 属性Set数组
     */
    public static Set<String> getPropertyNames(final Class<?> targetClass)
    {
