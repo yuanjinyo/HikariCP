@@ -58,6 +58,7 @@ public final class PropertyElf
             ((HikariConfig) target).addDataSourceProperty(key.toString().substring("dataSource.".length()), value);
          }
          else {
+            //setProperty
             setProperty(target, key.toString(), value, methods);
          }
       });
@@ -112,6 +113,11 @@ public final class PropertyElf
       }
    }
 
+   /**
+    * source copy to target
+    * @param props source
+    * @return target
+    */
    public static Properties copyProperties(final Properties props)
    {
       var copy = new Properties();
@@ -119,15 +125,23 @@ public final class PropertyElf
       return copy;
    }
 
+   /**
+    * 设置属性
+    * @param target 目标类
+    * @param propName 属性名
+    * @param propValue 属性值
+    * @param methods methods列表
+    */
    private static void setProperty(final Object target, final String propName, final Object propValue, final List<Method> methods)
    {
       final var logger = LoggerFactory.getLogger(PropertyElf.class);
 
-      // use the english locale to avoid the infamous turkish locale bug
+      // 例如propName=name methodName = setName
       var methodName = "set" + propName.substring(0, 1).toUpperCase(Locale.ENGLISH) + propName.substring(1);
       var writeMethod = methods.stream().filter(m -> m.getName().equals(methodName) && m.getParameterCount() == 1).findFirst().orElse(null);
 
       if (writeMethod == null) {
+         //例如propName=name methodName = setNAME
          var methodName2 = "set" + propName.toUpperCase(Locale.ENGLISH);
          writeMethod = methods.stream().filter(m -> m.getName().equals(methodName2) && m.getParameterCount() == 1).findFirst().orElse(null);
       }
@@ -138,6 +152,7 @@ public final class PropertyElf
       }
 
       try {
+         //获取参数类型Class,执行对应分支
          var paramClass = writeMethod.getParameterTypes()[0];
          if (paramClass == int.class) {
             writeMethod.invoke(target, Integer.parseInt(propValue.toString()));

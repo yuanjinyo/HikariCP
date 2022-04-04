@@ -102,7 +102,7 @@ public class HikariConfig implements HikariConfigMXBean {
     */
    private volatile long connectionTimeout;
    /**
-    * 校验超时:池等待连接验证为活动连接的最大毫秒数
+    * 验证超时:池等待连接验证为活动连接的最大毫秒数
     */
    private volatile long validationTimeout;
    /**
@@ -178,7 +178,7 @@ public class HikariConfig implements HikariConfigMXBean {
     */
    private String jdbcUrl;
    /**
-    * 池名称
+    * 连接池名称
     */
    private String poolName;
    /**
@@ -194,7 +194,7 @@ public class HikariConfig implements HikariConfigMXBean {
     */
    private boolean isAutoCommit;
    /**
-    * 是否只读
+    * 池中的连接是否处于只读模式
     */
    private boolean isReadOnly;
    /**
@@ -202,7 +202,7 @@ public class HikariConfig implements HikariConfigMXBean {
     */
    private boolean isIsolateInternalQueries;
    /**
-    * 是否注册JMX功能
+    * 是否注册JMX功能:确定HikariCP是否会在JMX中自注册HikariConfigMXBean和HikariPoolMXBean实例
     */
    private boolean isRegisterMbeans;
    /**
@@ -222,19 +222,19 @@ public class HikariConfig implements HikariConfigMXBean {
     */
    private ThreadFactory threadFactory;
    /**
-    * 定时执行Service
+    * ScheduledExecutor服务
     */
    private ScheduledExecutorService scheduledExecutor;
    /**
-    * 指标跟踪工厂
+    * 指标跟踪工厂:MetricsTrackerFactory、MetricRegistry互斥,只能存一
     */
    private MetricsTrackerFactory metricsTrackerFactory;
    /**
-    * JMX注册
+    * JMX注册:MetricsTrackerFactory、MetricRegistry互斥,只能存一
     */
    private Object metricRegistry;
    /**
-    * 健康检查注册
+    * 健康检查注册实例
     */
    private Object healthCheckRegistry;
    /**
@@ -242,7 +242,7 @@ public class HikariConfig implements HikariConfigMXBean {
     */
    private Properties healthCheckProperties;
    /**
-    * 存活时间
+    * 存活时间:只有当它处于空闲状态时才会对其进行测试
     */
    private long keepaliveTime;
    /**
@@ -648,10 +648,11 @@ public class HikariConfig implements HikariConfigMXBean {
    {
       //校验是否被密封
       checkIfSealed();
-
+      //尝试从ContextLoader中获取对应的driverClass
       var driverClass = attemptFromContextLoader(driverClassName);
       try {
          if (driverClass == null) {
+            //getClassLoader()当前类加载器加载对应的driverClass
             driverClass = this.getClass().getClassLoader().loadClass(driverClassName);
             LOGGER.debug("Driver class {} found in the HikariConfig class classloader {}", driverClassName, this.getClass().getClassLoader());
          }
@@ -812,7 +813,7 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * Determine whether internal pool queries, principally aliveness checks, will be isolated in their own transaction
     * via {@link Connection#rollback()}.  Defaults to {@code false}.
-    *
+    * 确定内部池查询，主要是有效性检查，将通过Connection#rollback()在自己的事务中隔离。默认为false。
     * @return {@code true} if internal pool queries are isolated, {@code false} if not
     */
    public boolean isIsolateInternalQueries()
@@ -823,7 +824,7 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * Configure whether internal pool queries, principally aliveness checks, will be isolated in their own transaction
     * via {@link Connection#rollback()}.  Defaults to {@code false}.
-    *
+    * 配置内部池查询，主要是有效性检查,将通过Connection#rollback()在自己的事务中隔离。默认为false。
     * @param isolate {@code true} if internal pool queries should be isolated, {@code false} if not
     */
    public void setIsolateInternalQueries(boolean isolate)
@@ -833,11 +834,20 @@ public class HikariConfig implements HikariConfigMXBean {
       this.isIsolateInternalQueries = isolate;
    }
 
+   /**
+    * 获取指标跟踪工厂
+    * @return
+    */
    public MetricsTrackerFactory getMetricsTrackerFactory()
    {
       return metricsTrackerFactory;
    }
 
+   /**
+    * 设置指标跟踪工厂
+    * MetricsTrackerFactory、MetricRegistry互斥,只能存一
+    * @param metricsTrackerFactory
+    */
    public void setMetricsTrackerFactory(MetricsTrackerFactory metricsTrackerFactory)
    {
       if (metricRegistry != null) {
@@ -849,7 +859,7 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Get the MetricRegistry instance to use for registration of metrics used by HikariCP.  Default is {@code null}.
-    *
+    * 获取MetricRegistry实例，用于注册HikariCP使用的度量，默认值为null
     * @return the MetricRegistry instance that will be used
     */
    public Object getMetricRegistry()
@@ -859,7 +869,8 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Set a MetricRegistry instance to use for registration of metrics used by HikariCP.
-    *
+    * 设置MetricRegistry实例，用于注册HikariCP使用的度量
+    * MetricsTrackerFactory、MetricRegistry互斥,只能存一
     * @param metricRegistry the MetricRegistry instance to use
     */
    public void setMetricRegistry(Object metricRegistry)
@@ -870,9 +881,9 @@ public class HikariConfig implements HikariConfigMXBean {
 
       if (metricRegistry != null) {
          metricRegistry = getObjectOrPerformJndiLookup(metricRegistry);
-
+         //检查对象是否为给定类型的实例
          if (!safeIsAssignableFrom(metricRegistry, "com.codahale.metrics.MetricRegistry")
-             && !(safeIsAssignableFrom(metricRegistry, "io.micrometer.core.instrument.MeterRegistry"))) {
+            && !(safeIsAssignableFrom(metricRegistry, "io.micrometer.core.instrument.MeterRegistry"))) {
             throw new IllegalArgumentException("Class must be instance of com.codahale.metrics.MetricRegistry or io.micrometer.core.instrument.MeterRegistry");
          }
       }
@@ -883,7 +894,8 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * Get the HealthCheckRegistry that will be used for registration of health checks by HikariCP.  Currently only
     * Codahale/DropWizard is supported for health checks.
-    *
+    * 获取HealthCheckRegistry，该注册表将用于HikariCP的健康检查注册
+    * 目前，健康检查只支持Codahale/DropWizard
     * @return the HealthCheckRegistry instance that will be used
     */
    public Object getHealthCheckRegistry()
@@ -894,7 +906,8 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * Set the HealthCheckRegistry that will be used for registration of health checks by HikariCP.  Currently only
     * Codahale/DropWizard is supported for health checks.  Default is {@code null}.
-    *
+    * 设置HealthCheckRegistry，该注册表将用于HikariCP的健康检查注册
+    * 目前，健康检查只支持Codahale/DropWizard
     * @param healthCheckRegistry the HealthCheckRegistry to be used
     */
    public void setHealthCheckRegistry(Object healthCheckRegistry)
@@ -903,7 +916,7 @@ public class HikariConfig implements HikariConfigMXBean {
 
       if (healthCheckRegistry != null) {
          healthCheckRegistry = getObjectOrPerformJndiLookup(healthCheckRegistry);
-
+         //检查对象是否为给定类型的实例
          if (!(healthCheckRegistry instanceof HealthCheckRegistry)) {
             throw new IllegalArgumentException("Class must be an instance of com.codahale.metrics.health.HealthCheckRegistry");
          }
@@ -912,19 +925,34 @@ public class HikariConfig implements HikariConfigMXBean {
       this.healthCheckRegistry = healthCheckRegistry;
    }
 
+   /**
+    * 获取健康检查配置
+    * @return
+    */
    public Properties getHealthCheckProperties()
    {
       return healthCheckProperties;
    }
 
+   /**
+    * 设置健康检查配置
+    * @param healthCheckProperties
+    */
    public void setHealthCheckProperties(Properties healthCheckProperties)
    {
+      //检查池是否密封
       checkIfSealed();
       this.healthCheckProperties.putAll(healthCheckProperties);
    }
 
+   /**
+    * 添加健康检查配置
+    * @param key
+    * @param value
+    */
    public void addHealthCheckProperty(String key, String value)
    {
+      //检查池是否密封
       checkIfSealed();
       healthCheckProperties.setProperty(key, value);
    }
@@ -932,7 +960,7 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * This property controls the keepalive interval for a connection in the pool. An in-use connection will never be
     * tested by the keepalive thread, only when it is idle will it be tested.
-    *
+    * 此属性控制池中连接的keepalive间隔。keepalive线程永远不会对正在使用的连接进行测试，只有当它处于空闲状态时才会对其进行测试。
     * @return the interval in which connections will be tested for aliveness, thus keeping them alive by the act of checking. Value is in milliseconds, default is 0 (disabled).
     */
    public long getKeepaliveTime() {
@@ -942,7 +970,7 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * This property controls the keepalive interval for a connection in the pool. An in-use connection will never be
     * tested by the keepalive thread, only when it is idle will it be tested.
-    *
+    * 此属性控制池中连接的keepalive间隔。keepalive线程永远不会对正在使用的连接进行测试，只有当它处于空闲状态时才会对其进行测试
     * @param keepaliveTimeMs the interval in which connections will be tested for aliveness, thus keeping them alive by the act of checking. Value is in milliseconds, default is 0 (disabled).
     */
    public void setKeepaliveTime(long keepaliveTimeMs) {
@@ -951,7 +979,7 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Determine whether the Connections in the pool are in read-only mode.
-    *
+    * 确定池中的连接是否处于只读模式
     * @return {@code true} if the Connections in the pool are read-only, {@code false} if not
     */
    public boolean isReadOnly()
@@ -961,11 +989,12 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Configures the Connections to be added to the pool as read-only Connections.
-    *
+    * 将要添加到池中的连接配置为只读连接
     * @param readOnly {@code true} if the Connections in the pool are read-only, {@code false} if not
     */
    public void setReadOnly(boolean readOnly)
    {
+      //检查池是否密封
       checkIfSealed();
       this.isReadOnly = readOnly;
    }
@@ -973,7 +1002,7 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * Determine whether HikariCP will self-register {@link HikariConfigMXBean} and {@link HikariPoolMXBean} instances
     * in JMX.
-    *
+    * 确定HikariCP是否会在JMX中自注册{@link HikariConfigMXBean}和{@link HikariPoolMXBean}实例
     * @return {@code true} if HikariCP will register MXBeans, {@code false} if it will not
     */
    public boolean isRegisterMbeans()
@@ -983,11 +1012,12 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Configures whether HikariCP self-registers the {@link HikariConfigMXBean} and {@link HikariPoolMXBean} in JMX.
-    *
+    * 配置HikariCP是否在JMX中自注册{@link HikariConfigMXBean}和{@link HikariPoolMXBean}实例
     * @param register {@code true} if HikariCP should register MXBeans, {@code false} if it should not
     */
    public void setRegisterMbeans(boolean register)
    {
+      //检查池是否密封
       checkIfSealed();
       this.isRegisterMbeans = register;
    }
@@ -1002,18 +1032,19 @@ public class HikariConfig implements HikariConfigMXBean {
    /**
     * Set the name of the connection pool.  This is primarily used for the MBean
     * to uniquely identify the pool configuration.
-    *
+    * 设置连接池的名称。这主要用于MBean唯一标识池配置
     * @param poolName the name of the connection pool to use
     */
    public void setPoolName(String poolName)
    {
+      //检查池是否密封
       checkIfSealed();
       this.poolName = poolName;
    }
 
    /**
     * Get the ScheduledExecutorService used for housekeeping.
-    *
+    * 获取用于客房管理的ScheduledExecutor服务
     * @return the executor
     */
    public ScheduledExecutorService getScheduledExecutor()
@@ -1023,15 +1054,20 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Set the ScheduledExecutorService used for housekeeping.
-    *
+    * 配置用于客房管理的ScheduledExecutor服务。
     * @param executor the ScheduledExecutorService
     */
    public void setScheduledExecutor(ScheduledExecutorService executor)
    {
+      //检查池是否密封
       checkIfSealed();
       this.scheduledExecutor = executor;
    }
 
+   /**
+    * 获取事务隔离级别
+    * @return
+    */
    public String getTransactionIsolation()
    {
       return transactionIsolationName;
@@ -1039,7 +1075,7 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Get the default schema name to be set on connections.
-    *
+    * 获取要在连接上设置的默认主题名称
     * @return the default schema name
     */
    public String getSchema()
@@ -1049,18 +1085,19 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Set the default schema name to be set on connections.
-    *
+    * 设置要在连接上设置的默认主题名称
     * @param schema the name of the default schema
     */
    public void setSchema(String schema)
    {
+      //检查池是否密封
       checkIfSealed();
       this.schema = schema;
    }
 
    /**
     * Get the user supplied SQLExceptionOverride class name.
-    *
+    * 获取用户提供的SQLExceptionOverride类名。
     * @return the user supplied SQLExceptionOverride class name
     * @see SQLExceptionOverride
     */
@@ -1071,29 +1108,32 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Set the user supplied SQLExceptionOverride class name.
-    *
+    * 配置用户提供的SQLExceptionOverride类名
     * @param exceptionOverrideClassName the user supplied SQLExceptionOverride class name
     * @see SQLExceptionOverride
     */
    public void setExceptionOverrideClassName(String exceptionOverrideClassName)
    {
+      //检查池是否密封
       checkIfSealed();
-
+      //尝试从ContextLoader中加载对应的driverClass
       var overrideClass = attemptFromContextLoader(exceptionOverrideClassName);
       try {
          if (overrideClass == null) {
+            //getClassLoader()当前类加载器加载对应的driverClass
             overrideClass = this.getClass().getClassLoader().loadClass(exceptionOverrideClassName);
             LOGGER.debug("SQLExceptionOverride class {} found in the HikariConfig class classloader {}", exceptionOverrideClassName, this.getClass().getClassLoader());
          }
       } catch (ClassNotFoundException e) {
          LOGGER.error("Failed to load SQLExceptionOverride class {} from HikariConfig class classloader {}", exceptionOverrideClassName, this.getClass().getClassLoader());
       }
-
+      //getContextClassLoader和getClassLoader都获取不到
       if (overrideClass == null) {
          throw new RuntimeException("Failed to load SQLExceptionOverride class " + exceptionOverrideClassName + " in either of HikariConfig class loader or Thread context classloader");
       }
 
       try {
+         //实例化
          overrideClass.getConstructor().newInstance();
          this.exceptionOverrideClassName = exceptionOverrideClassName;
       }
@@ -1106,18 +1146,19 @@ public class HikariConfig implements HikariConfigMXBean {
     * Set the default transaction isolation level.  The specified value is the
     * constant name from the <code>Connection</code> class, eg.
     * <code>TRANSACTION_REPEATABLE_READ</code>.
-    *
+    * 设置默认事务隔离级别。
     * @param isolationLevel the name of the isolation level
     */
    public void setTransactionIsolation(String isolationLevel)
    {
+      //检查池是否密封
       checkIfSealed();
       this.transactionIsolationName = isolationLevel;
    }
 
    /**
     * Get the thread factory used to create threads.
-    *
+    * 获取用于创建线程的线程工厂。
     * @return the thread factory (may be null, in which case the default thread factory is used)
     */
    public ThreadFactory getThreadFactory()
@@ -1127,15 +1168,19 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Set the thread factory to be used to create threads.
-    *
+    * 配置用于创建线程的线程工厂。
     * @param threadFactory the thread factory (setting to null causes the default thread factory to be used)
     */
    public void setThreadFactory(ThreadFactory threadFactory)
    {
+      //检查池是否密封
       checkIfSealed();
       this.threadFactory = threadFactory;
    }
 
+   /**
+    * 密封
+    */
    void seal()
    {
       this.sealed = true;
@@ -1143,12 +1188,14 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Copies the state of {@code this} into {@code other}.
-    *
+    * 将状态复制到的${Other HikariConfig}
     * @param other Other {@link HikariConfig} to copy the state to.
     */
    public void copyStateTo(HikariConfig other)
    {
+      //属性字段遍历
       for (var field : HikariConfig.class.getDeclaredFields()) {
+         //field被final修饰，则返回true
          if (!Modifier.isFinal(field.getModifiers())) {
             field.setAccessible(true);
             try {
@@ -1159,7 +1206,7 @@ public class HikariConfig implements HikariConfigMXBean {
             }
          }
       }
-
+      //未密封
       other.sealed = false;
    }
 
@@ -1167,10 +1214,20 @@ public class HikariConfig implements HikariConfigMXBean {
    //                          Private methods
    // ***********************************************************************
 
+   /**
+    * 尝试从ContextLoader中获取对应的driverClass
+    * Tips:
+    *    getClassLoader()是当前类加载器,而getContextClassLoader是当前当前线程上下文类加载器
+    *    getClassLoader()是使用双亲委派模型来加载类的,而getContextClassLoader就是为了避开双亲委派模型的加载方式
+    * @param driverClassName
+    * @return
+    */
    private Class<?> attemptFromContextLoader(final String driverClassName) {
+      //获取当前线程上下文类加载器
       final var threadContextClassLoader = Thread.currentThread().getContextClassLoader();
       if (threadContextClassLoader != null) {
          try {
+            //加载对应的driverClass
             final var driverClass = threadContextClassLoader.loadClass(driverClassName);
             LOGGER.debug("Driver class {} found in Thread context class loader {}", driverClassName, threadContextClassLoader);
             return driverClass;
@@ -1183,18 +1240,23 @@ public class HikariConfig implements HikariConfigMXBean {
       return null;
    }
 
+   /**
+    * 验证
+    */
    @SuppressWarnings("StatementWithEmptyBody")
    public void validate()
    {
+      //判断连接池名称
       if (poolName == null) {
          poolName = generatePoolName();
       }
       else if (isRegisterMbeans && poolName.contains(":")) {
+         //与JMX一起使用时，poolName不能包含“：”
          throw new IllegalArgumentException("poolName cannot contain ':' when used with JMX");
       }
 
-      // treat empty property as null
-      //noinspection NonAtomicOperationOnVolatileField
+      //将空属性视为null
+      //noinspection NonAtomicOperationOnVolatileField 不检查 非原子操作的volatile字段
       catalog = getNullIfEmpty(catalog);
       connectionInitSql = getNullIfEmpty(connectionInitSql);
       connectionTestQuery = getNullIfEmpty(connectionTestQuery);
@@ -1204,94 +1266,107 @@ public class HikariConfig implements HikariConfigMXBean {
       driverClassName = getNullIfEmpty(driverClassName);
       jdbcUrl = getNullIfEmpty(jdbcUrl);
 
-      // Check Data Source Options
+      //检查数据源选项
       if (dataSource != null) {
          if (dataSourceClassName != null) {
+            //dataSource和dataSourceClassName都不为空,会忽略dataSourceClassName
             LOGGER.warn("{} - using dataSource and ignoring dataSourceClassName.", poolName);
          }
       }
       else if (dataSourceClassName != null) {
+         //无法同时使用driverClassName和dataSourceClassName
          if (driverClassName != null) {
             LOGGER.error("{} - cannot use driverClassName and dataSourceClassName together.", poolName);
             // NOTE: This exception text is referenced by a Spring Boot FailureAnalyzer, it should not be
             // changed without first notifying the Spring Boot developers.
             throw new IllegalStateException("cannot use driverClassName and dataSourceClassName together.");
          }
+         //dataSourceClassName和jdbcUrl都不为空,会忽略jdbcUrl
          else if (jdbcUrl != null) {
             LOGGER.warn("{} - using dataSourceClassName and ignoring jdbcUrl.", poolName);
          }
       }
+      //jdbcUrl、dataSourceJndiName有一个不为空 OK
       else if (jdbcUrl != null || dataSourceJndiName != null) {
          // ok
       }
       else if (driverClassName != null) {
+         //jdbcUrl必须与driverClassName一起使用
          LOGGER.error("{} - jdbcUrl is required with driverClassName.", poolName);
          throw new IllegalArgumentException("jdbcUrl is required with driverClassName.");
       }
       else {
+         //dataSource或dataSourceClassName或jdbcUrl是必要的
          LOGGER.error("{} - dataSource or dataSourceClassName or jdbcUrl is required.", poolName);
          throw new IllegalArgumentException("dataSource or dataSourceClassName or jdbcUrl is required.");
       }
-
+      //验证数字
       validateNumerics();
-
+      //日志配置
       if (LOGGER.isDebugEnabled() || unitTest) {
          logConfiguration();
       }
    }
 
+   /**
+    * 验证数字
+    */
    private void validateNumerics()
    {
+      //maxLifetime(最大生存期)必须大于等于30s
       if (maxLifetime != 0 && maxLifetime < SECONDS.toMillis(30)) {
          LOGGER.warn("{} - maxLifetime is less than 30000ms, setting to default {}ms.", poolName, MAX_LIFETIME);
          maxLifetime = MAX_LIFETIME;
       }
 
-      // keepalive time must larger then 30 seconds
+      //keepaliveTime(存活时间)必须大于等于30s,反之禁用不生效.
       if (keepaliveTime != 0 && keepaliveTime < SECONDS.toMillis(30)) {
          LOGGER.warn("{} - keepaliveTime is less than 30000ms, disabling it.", poolName);
          keepaliveTime = DEFAULT_KEEPALIVE_TIME;
       }
 
-      // keepalive time must be less than maxLifetime (if maxLifetime is enabled)
+      //如果启用了maxLifetime(最大生存期),那么keepaliveTime(存活时间)必须小于maxLifetime(最大生存期),反之禁用不生效.
       if (keepaliveTime != 0 && maxLifetime != 0 && keepaliveTime >= maxLifetime) {
          LOGGER.warn("{} - keepaliveTime is greater than or equal to maxLifetime, disabling it.", poolName);
          keepaliveTime = DEFAULT_KEEPALIVE_TIME;
       }
 
       if (leakDetectionThreshold > 0 && !unitTest) {
+         //leakDetectionThreshold(泄漏检测阈值)必须大于2s或小于maxLifetime(最大生存期),反之禁用(0表示禁用)不生效.
          if (leakDetectionThreshold < SECONDS.toMillis(2) || (leakDetectionThreshold > maxLifetime && maxLifetime > 0)) {
             LOGGER.warn("{} - leakDetectionThreshold is less than 2000ms or more than maxLifetime, disabling it.", poolName);
             leakDetectionThreshold = 0;
          }
       }
-
+      //connectionTimeout(连接超时)必须大于等于SOFT_TIMEOUT_FLOOR(超时时间最小值限制)
       if (connectionTimeout < SOFT_TIMEOUT_FLOOR) {
          LOGGER.warn("{} - connectionTimeout is less than {}ms, setting to {}ms.", poolName, SOFT_TIMEOUT_FLOOR, CONNECTION_TIMEOUT);
          connectionTimeout = CONNECTION_TIMEOUT;
       }
-
+      //validationTimeout(验证超时)必须大于等于SOFT_TIMEOUT_FLOOR(超时时间最小值限制)
       if (validationTimeout < SOFT_TIMEOUT_FLOOR) {
          LOGGER.warn("{} - validationTimeout is less than {}ms, setting to {}ms.", poolName, SOFT_TIMEOUT_FLOOR, VALIDATION_TIMEOUT);
          validationTimeout = VALIDATION_TIMEOUT;
       }
-
+      //maxPoolSize(最大连接数)必须大于1
       if (maxPoolSize < 1) {
          maxPoolSize = DEFAULT_POOL_SIZE;
       }
-
+      //minIdle(最小空闲连接数)必须大于0或者小于maxPoolSize(最大连接数)
       if (minIdle < 0 || minIdle > maxPoolSize) {
          minIdle = maxPoolSize;
       }
-
+      //idleTimeout(空闲超时)接近或超过maxLifetime，将其禁用。
       if (idleTimeout + SECONDS.toMillis(1) > maxLifetime && maxLifetime > 0 && minIdle < maxPoolSize) {
          LOGGER.warn("{} - idleTimeout is close to or more than maxLifetime, disabling it.", poolName);
          idleTimeout = 0;
       }
+      //idleTimeout(空闲超时)小于10s，设置为默认值10s
       else if (idleTimeout != 0 && idleTimeout < SECONDS.toMillis(10) && minIdle < maxPoolSize) {
          LOGGER.warn("{} - idleTimeout is less than 10000ms, setting to default {}ms.", poolName, IDLE_TIMEOUT);
          idleTimeout = IDLE_TIMEOUT;
       }
+      //idleTimeout(空闲超时)已设置，但因为该池作为固定大小的池运行,所以不生效
       else  if (idleTimeout != IDLE_TIMEOUT && idleTimeout != 0 && minIdle == maxPoolSize) {
          LOGGER.warn("{} - idleTimeout has been set but has no effect because the pool is operating as a fixed size pool.", poolName);
       }
@@ -1305,19 +1380,24 @@ public class HikariConfig implements HikariConfigMXBean {
       if (sealed) throw new IllegalStateException("The configuration of the pool is sealed once started. Use HikariConfigMXBean for runtime changes.");
    }
 
+   /**
+    * 日志配置
+    */
    private void logConfiguration()
    {
       LOGGER.debug("{} - configuration:", poolName);
+      //获取指定对象的bean样式属性名称
       final var propertyNames = new TreeSet<>(PropertyElf.getPropertyNames(HikariConfig.class));
+      //遍历
       for (var prop : propertyNames) {
          try {
+            //获取对应属性的value值
             var value = PropertyElf.getProperty(prop, this);
             if ("dataSourceProperties".equals(prop)) {
                var dsProps = PropertyElf.copyProperties(dataSourceProperties);
                dsProps.setProperty("password", "<masked>");
                value = dsProps;
             }
-
             if ("initializationFailTimeout".equals(prop) && initializationFailTimeout == Long.MAX_VALUE) {
                value = "infinite";
             }
@@ -1373,22 +1453,28 @@ public class HikariConfig implements HikariConfigMXBean {
       }
    }
 
+   /**
+    * 生成连接池名称
+    * @return
+    */
    private String generatePoolName()
    {
+      //固定前缀
       final var prefix = "HikariPool-";
       try {
-         // Pool number is global to the VM to avoid overlapping pool numbers in classloader scoped environments
+         //池号对VM来说是全局的，以避免在类加载器范围的环境中重叠池号
          synchronized (System.getProperties()) {
+            //获取当前的池号+1更新property并返回
             final var next = String.valueOf(Integer.getInteger("com.zaxxer.hikari.pool_number", 0) + 1);
             System.setProperty("com.zaxxer.hikari.pool_number", next);
             return prefix + next;
          }
       } catch (AccessControlException e) {
-         // The SecurityManager didn't allow us to read/write system properties
-         // so just generate a random pool number instead
+         //SecurityManager不允许我们读取/写入系统属性
+         //所以只需生成一个随机的池号即可
          final var random = ThreadLocalRandom.current();
          final var buf = new StringBuilder(prefix);
-
+         //随机获取四位数
          for (var i = 0; i < 4; i++) {
             buf.append(ID_CHARACTERS[random.nextInt(62)]);
          }
@@ -1399,6 +1485,11 @@ public class HikariConfig implements HikariConfigMXBean {
       }
    }
 
+   /**
+    * 获取对象或执行Jndi查找
+    * @param object
+    * @return
+    */
    private Object getObjectOrPerformJndiLookup(Object object)
    {
       if (object instanceof String) {

@@ -59,6 +59,7 @@ public final class UtilityElf
    }
 
    /**
+    * 检查对象是否为给定类型的实例，在未加载该类时不会引发异常
     * Checks whether an object is an instance of given type without throwing exception when the class is not loaded.
     * @param obj the object to check
     * @param className String class
