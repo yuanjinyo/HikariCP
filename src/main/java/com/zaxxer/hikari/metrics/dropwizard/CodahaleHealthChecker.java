@@ -48,16 +48,18 @@ public final class CodahaleHealthChecker
 {
    /**
     * Register Dropwizard health checks.
-    *
+    * 注册Dropwizard健康检查
     * @param pool the pool to register health checks for
     * @param hikariConfig the pool configuration
     * @param registry the HealthCheckRegistry into which checks will be registered
     */
    public static void registerHealthChecks(final HikariPool pool, final HikariConfig hikariConfig, final HealthCheckRegistry registry)
    {
+      //健康检查配置
       final var healthCheckProperties = hikariConfig.getHealthCheckProperties();
+      //JMX注册
       final var metricRegistry = (MetricRegistry) hikariConfig.getMetricRegistry();
-
+      //连接超时毫秒数
       final var checkTimeoutMs = Long.parseLong(healthCheckProperties.getProperty("connectivityCheckTimeoutMs", String.valueOf(hikariConfig.getConnectionTimeout())));
       registry.register(MetricRegistry.name(hikariConfig.getPoolName(), "pool", "ConnectivityCheck"), new ConnectivityHealthCheck(pool, checkTimeoutMs));
 

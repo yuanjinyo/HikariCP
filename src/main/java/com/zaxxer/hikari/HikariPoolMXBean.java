@@ -20,7 +20,7 @@ import javax.sql.DataSource;
 
 /**
  * The javax.management MBean for a Hikari pool instance.
- *
+ * Hikari池实例的MXBean {@link com.zaxxer.hikari.pool.HikariPool}
  * @author Brett Wooldridge
  */
 public interface HikariPoolMXBean

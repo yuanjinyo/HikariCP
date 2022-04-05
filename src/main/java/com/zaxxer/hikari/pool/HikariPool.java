@@ -90,13 +90,15 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    public HikariPool(final HikariConfig config)
    {
+      //父类构造器
       super(config);
-
+      //构建一个connectionBag用于保存连接, connectionBag是连接池的核心
       this.connectionBag = new ConcurrentBag<>(this);
+      //根据是否允许挂起连接池, 初始化锁
       this.suspendResumeLock = config.isAllowPoolSuspension() ? new SuspendResumeLock() : SuspendResumeLock.FAUX_LOCK;
-
+      //定时线程池(用于执行检测连接泄露、关闭生存时间到期的连接、回收空闲连接、检测时间回拨)
       this.houseKeepingExecutorService = initializeHouseKeepingExecutorService();
-
+      //快速失败
       checkFailFast();
 
       if (config.getMetricsTrackerFactory() != null) {
@@ -105,31 +107,36 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       else {
          setMetricRegistry(config.getMetricRegistry());
       }
-
+      //配置健康检测
       setHealthCheckRegistry(config.getHealthCheckRegistry());
-
+      //为HikariConfig和HikariPool注册 JMX 相关的 MBean
       handleMBeans(this, true);
-
+      //线程工厂
       ThreadFactory threadFactory = config.getThreadFactory();
-
+      //连接池最大值
       final int maxPoolSize = config.getMaximumPoolSize();
+      //构建一个阻塞队列
       LinkedBlockingQueue<Runnable> addConnectionQueue = new LinkedBlockingQueue<>(16);
+      //执行添加新连接的线程池
       this.addConnectionExecutor = createThreadPoolExecutor(addConnectionQueue, poolName + " connection adder", threadFactory, new CustomDiscardPolicy());
+      //执行关闭底层连接的线程池(队列任务抛弃策略会不断重试)
       this.closeConnectionExecutor = createThreadPoolExecutor(maxPoolSize, poolName + " connection closer", threadFactory, new ThreadPoolExecutor.CallerRunsPolicy());
-
+      //构建泄露任务工厂
       this.leakTaskFactory = new ProxyLeakTaskFactory(config.getLeakDetectionThreshold(), houseKeepingExecutorService);
-
+      //创建定时任务(第一次100毫秒后执行,后续均30s走一次)
       this.houseKeeperTask = houseKeepingExecutorService.scheduleWithFixedDelay(new HouseKeeper(), 100L, housekeepingPeriodMs, MILLISECONDS);
-
+      //堵塞直至填满 && 初始化失败超时 > 1ms
       if (Boolean.getBoolean("com.zaxxer.hikari.blockUntilFilled") && config.getInitializationFailTimeout() > 1) {
+         //配置最大值、核心数
          addConnectionExecutor.setMaximumPoolSize(Math.min(16, Runtime.getRuntime().availableProcessors()));
          addConnectionExecutor.setCorePoolSize(Math.min(16, Runtime.getRuntime().availableProcessors()));
 
          final long startTime = currentTime();
+         //条件成立进入睡眠
          while (elapsedMillis(startTime) < config.getInitializationFailTimeout() && getTotalConnections() < config.getMinimumIdle()) {
             quietlySleep(MILLISECONDS.toMillis(100));
          }
-
+         //配置最大值、核心数
          addConnectionExecutor.setCorePoolSize(1);
          addConnectionExecutor.setMaximumPoolSize(1);
       }
@@ -137,7 +144,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * Get a connection from the pool, or timeout after connectionTimeout milliseconds.
-    *
+    * 从池中获取连接，或在指定的毫秒数后超时
     * @return a java.sql.Connection instance
     * @throws SQLException thrown if a timeout occurs trying to obtain a connection
     */
@@ -148,43 +155,56 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * Get a connection from the pool, or timeout after the specified number of milliseconds.
-    *
+    * 从池中获取连接，或在指定的毫秒数后超时
     * @param hardTimeout the maximum time to wait for a connection from the pool
     * @return a java.sql.Connection instance
     * @throws SQLException thrown if a timeout occurs trying to obtain a connection
     */
    public Connection getConnection(final long hardTimeout) throws SQLException
    {
+      //获取连接的时候申请令牌, 主要是为了连接池挂起的时候, 控制用户不能获取连接
+      //当连接池挂起的时候, Semaphore的 10000 个令牌都会被占用, 此处就会一直阻塞线程等待令牌
       suspendResumeLock.acquire();
+      //记录获取连接的开始时间, 用于超时判断
       final var startTime = currentTime();
 
       try {
+         //超时时间
          var timeout = hardTimeout;
          do {
+            //从连接池获取连接, 超时时间timeout
             var poolEntry = connectionBag.borrow(timeout, MILLISECONDS);
+            //borrow方法在超时的时候才会返回 null
             if (poolEntry == null) {
-               break; // We timed out... break and throw exception
+               break;
             }
 
             final var now = currentTime();
+            //连接是否已被标记移除 || (最后访问时间 - now的毫秒差大于500毫秒 && 连接是否已死亡)
             if (poolEntry.isMarkedEvicted() || (elapsedMillis(poolEntry.lastAccessed, now) > aliveBypassWindowMs && isConnectionDead(poolEntry.connection))) {
+               //关闭连接
                closeConnection(poolEntry, poolEntry.isMarkedEvicted() ? EVICTED_CONNECTION_MESSAGE : DEAD_CONNECTION_MESSAGE);
+               //剩余超时时间
                timeout = hardTimeout - elapsedMillis(startTime);
             }
             else {
+               //记录连接借用
                metricsTracker.recordBorrowStats(poolEntry, startTime);
+               //创建ProxyConnection, ProxyConnection是Connection的包装, 同时也创建一个泄露检测的定时任务
                return poolEntry.createProxyConnection(leakTaskFactory.schedule(poolEntry));
             }
          } while (timeout > 0L);
-
+         //记录连接超时 抛出创建超时异常
          metricsTracker.recordBorrowTimeoutStats(startTime);
          throw createTimeoutException(startTime);
       }
       catch (InterruptedException e) {
+         //连接获取期间中断
          Thread.currentThread().interrupt();
          throw new SQLException(poolName + " - Interrupted during connection acquisition", e);
       }
       finally {
+         //释放锁
          suspendResumeLock.release();
       }
    }
@@ -272,7 +292,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    /**
     * Set a metrics registry to be used when registering metrics collectors.  The HikariDataSource prevents this
     * method from being called more than once.
-    *
+    * 设置注册度量收集器时要使用的度量注册表
     * @param metricRegistry the metrics registry instance to use
     */
    @SuppressWarnings("PackageAccessibility")
@@ -291,7 +311,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * Set the MetricsTrackerFactory to be used to create the IMetricsTracker instance used by the pool.
-    *
+    * 设置MetricsTrackerFactory，用于创建池使用的IMetricsTracker实例。
     * @param metricsTrackerFactory an instance of a class that subclasses MetricsTrackerFactory
     */
    public void setMetricsTrackerFactory(MetricsTrackerFactory metricsTrackerFactory)
@@ -300,6 +320,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
          this.metricsTracker = new MetricsTrackerDelegate(metricsTrackerFactory.create(config.getPoolName(), getPoolStats()));
       }
       else {
+         //空实现
          this.metricsTracker = new NopMetricsTrackerDelegate();
       }
    }
@@ -307,7 +328,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    /**
     * Set the health check registry to be used when registering health checks.  Currently only Codahale health
     * checks are supported.
-    *
+    * 设置注册健康检查时要使用的健康检查注册表。目前只支持Codahale健康检查
     * @param healthCheckRegistry the health check registry instance to use
     */
    public void setHealthCheckRegistry(Object healthCheckRegistry)
@@ -432,7 +453,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * Permanently close the real (underlying) connection (eat any exception).
-    *
+    * 永久关闭真实（底层）连接（任何异常）
     * @param poolEntry poolEntry having the connection to close
     * @param closureReason reason to close
     */
@@ -545,7 +566,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * If initializationFailFast is configured, check that we have DB connectivity.
-    *
+    * 如果配置了initializationFailFast，请检查数据库连接是否正常
     * @throws PoolInitializationException if fails to create or validate connection
     * @see HikariConfig#setInitializationFailTimeout(long)
     */
@@ -624,13 +645,16 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     * Create/initialize the Housekeeping service {@link ScheduledExecutorService}.  If the user specified an Executor
     * to be used in the {@link HikariConfig}, then we use that.  If no Executor was specified (typical), then create
     * an Executor and configure it.
-    *
+    * 创建/初始化Housekeeping service，如果用户指定了要在HikariConfig中使用的执行器那么我们就使用它。如果未指定执行器（典型），则创建一个执行器并对其进行配置。
     * @return either the user specified {@link ScheduledExecutorService}, or the one we created
     */
    private ScheduledExecutorService initializeHouseKeepingExecutorService()
    {
+      //用户未指定
       if (config.getScheduledExecutor() == null) {
+         //线程工厂
          final var threadFactory = Optional.ofNullable(config.getThreadFactory()).orElseGet(() -> new DefaultThreadFactory(poolName + " housekeeper", true));
+         //ScheduledThreadPoolExecutor
          final var executor = new ScheduledThreadPoolExecutor(1, threadFactory, new ThreadPoolExecutor.DiscardPolicy());
          executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
          executor.setRemoveOnCancelPolicy(true);
@@ -779,7 +803,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       public void run()
       {
          try {
-            // refresh values in case they changed via MBean
+            //刷新值，以防它们通过MBean更改
             connectionTimeout = config.getConnectionTimeout();
             validationTimeout = config.getValidationTimeout();
             leakTaskFactory.updateLeakDetectionThreshold(config.getLeakDetectionThreshold());
@@ -796,6 +820,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
                logger.warn("{} - Retrograde clock change detected (housekeeper delta={}), soft-evicting connections from pool.",
                            poolName, elapsedDisplayString(previous, now));
                previous = now;
+               //软驱逐连接
                softEvictConnections();
                return;
             }

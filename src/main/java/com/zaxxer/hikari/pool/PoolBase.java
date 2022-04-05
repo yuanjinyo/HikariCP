@@ -50,45 +50,112 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 abstract class PoolBase
 {
+   /**
+    * Logger日志
+    */
    private final Logger logger = LoggerFactory.getLogger(PoolBase.class);
-
+   /**
+    * Hikari配置
+    */
    public final HikariConfig config;
+   /**
+    * 指标追踪
+    */
    IMetricsTrackerDelegate metricsTracker;
-
+   /**
+    * 连接池名称 来源:HikariConfig
+    */
    protected final String poolName;
-
+   /**
+    * 默认目录名称 来源:HikariConfig
+    */
    volatile String catalog;
+   /**
+    * 最新连接异常信息
+    */
    final AtomicReference<Exception> lastConnectionFailure;
-
+   /**
+    * 连接超时 来源:HikariConfig
+    */
    long connectionTimeout;
+   /**
+    * 验证超时 来源:HikariConfig
+    */
    long validationTimeout;
-
+   /**
+    * 异常处理实例 通过HikariConfig.exceptionOverrideClassName创建实例
+    */
    SQLExceptionOverride exceptionOverride;
-
+   /**
+    * 重置
+    */
    private static final String[] RESET_STATES = {"readOnly", "autoCommit", "isolation", "catalog", "netTimeout", "schema"};
+   /**
+    * 未初始化
+    */
    private static final int UNINITIALIZED = -1;
+   /**
+    * TRUE、FALSE
+    */
    private static final int TRUE = 1;
    private static final int FALSE = 0;
-
+   /**
+    * 网络超时
+    */
    private int networkTimeout;
+   /**
+    * 是否支持网络超时
+    */
    private int isNetworkTimeoutSupported;
+   /**
+    * 是否支持查询超时
+    */
    private int isQueryTimeoutSupported;
+   /**
+    * 默认事务隔离级别
+    */
    private int defaultTransactionIsolation;
+   /**
+    * 事务隔离级别 来源:HikariConfig.transactionIsolationName匹配枚举
+    */
    private int transactionIsolation;
+   /**
+    * 网络超时执行器
+    */
    private Executor netTimeoutExecutor;
+   /**
+    * 数据源
+    */
    private DataSource dataSource;
-
+   /**
+    * 主题名称 来源:HikariConfig
+    */
    private final String schema;
+   /**
+    * 是否只读 来源:HikariConfig
+    */
    private final boolean isReadOnly;
+   /**
+    * 是否自动提交事务 来源:HikariConfig
+    */
    private final boolean isAutoCommit;
-
+   /**
+    * 是否使用JDBC4验证
+    * connectionTestQuery不为空,则为true,反之为false
+    */
    private final boolean isUseJdbc4Validation;
+   /**
+    * 是否隔离内部查询 来源:HikariConfig
+    */
    private final boolean isIsolateInternalQueries;
-
+   /**
+    * 是否验证检查
+    */
    private volatile boolean isValidChecked;
 
    PoolBase(final HikariConfig config)
    {
+
       this.config = config;
 
       this.networkTimeout = UNINITIALIZED;
@@ -96,7 +163,9 @@ abstract class PoolBase
       this.schema = config.getSchema();
       this.isReadOnly = config.isReadOnly();
       this.isAutoCommit = config.isAutoCommit();
+      //创建异常实例
       this.exceptionOverride = UtilityElf.createInstance(config.getExceptionOverrideClassName(), SQLExceptionOverride.class);
+      //获取事务隔离级别Level值
       this.transactionIsolation = UtilityElf.getTransactionIsolation(config.getTransactionIsolation());
 
       this.isQueryTimeoutSupported = UNINITIALIZED;
@@ -107,8 +176,9 @@ abstract class PoolBase
       this.poolName = config.getPoolName();
       this.connectionTimeout = config.getConnectionTimeout();
       this.validationTimeout = config.getValidationTimeout();
+      //构建一个原子引用
       this.lastConnectionFailure = new AtomicReference<>();
-
+      //初始化数据源
       initializeDataSource();
    }
 
@@ -144,6 +214,11 @@ abstract class PoolBase
       }
    }
 
+   /**
+    *
+    * @param connection
+    * @return
+    */
    boolean isConnectionDead(final Connection connection)
    {
       try {
@@ -262,7 +337,7 @@ abstract class PoolBase
 
    /**
     * Register MBeans for HikariConfig and HikariPool.
-    *
+    * 为HikariConfig和HikariPool注册MBean
     * @param hikariPool a HikariPool instance
     */
    void handleMBeans(final HikariPool hikariPool, final boolean register)
@@ -305,10 +380,11 @@ abstract class PoolBase
    // ***********************************************************************
 
    /**
-    * Create/initialize the underlying DataSource.
+    * 创建/初始化基础数据源
     */
    private void initializeDataSource()
    {
+      //组装基本信息
       final var jdbcUrl = config.getJdbcUrl();
       final var username = config.getUsername();
       final var password = config.getPassword();
@@ -318,11 +394,14 @@ abstract class PoolBase
       final var dataSourceProperties = config.getDataSourceProperties();
 
       var ds = config.getDataSource();
+      //优先级别 从左往右逐渐减低[dataSourceClassName、jdbcUrl、dataSourceJndiName]
       if (dsClassName != null && ds == null) {
+         //创建实例 配置属性
          ds = createInstance(dsClassName, DataSource.class);
          PropertyElf.setTargetFromProperties(ds, dataSourceProperties);
       }
       else if (jdbcUrl != null && ds == null) {
+         //DriverDataSource
          ds = new DriverDataSource(jdbcUrl, driverClassName, dataSourceProperties, username, password);
       }
       else if (dataSourceJNDI != null && ds == null) {
@@ -335,7 +414,9 @@ abstract class PoolBase
       }
 
       if (ds != null) {
+         //配置登录超时时间
          setLoginTimeout(ds);
+         //创建网络超时执行器
          createNetworkTimeoutExecutor(ds, dsClassName, jdbcUrl);
       }
 
@@ -589,6 +670,12 @@ abstract class PoolBase
       }
    }
 
+   /**
+    * 创建网络超时执行器
+    * @param dataSource
+    * @param dsClassName
+    * @param jdbcUrl
+    */
    private void createNetworkTimeoutExecutor(final DataSource dataSource, final String dsClassName, final String jdbcUrl)
    {
       // Temporary hack for MySQL issue: http://bugs.mysql.com/bug.php?id=75615
@@ -609,7 +696,7 @@ abstract class PoolBase
 
    /**
     * Set the loginTimeout on the specified DataSource.
-    *
+    * 在指定的数据源上设置loginTimeout
     * @param dataSource the DataSource
     */
    private void setLoginTimeout(final DataSource dataSource)

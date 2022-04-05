@@ -77,7 +77,7 @@ public final class UtilityElf
    /**
     * Create and instance of the specified class using the constructor matching the specified
     * arguments.
-    *
+    * 使用与指定参数匹配的构造函数创建指定类的实例
     * @param <T> the class type
     * @param className the name of the class to instantiate
     * @param clazz a class to cast the result as
@@ -122,16 +122,18 @@ public final class UtilityElf
       if (threadFactory == null) {
          threadFactory = new DefaultThreadFactory(threadName, true);
       }
-
+      //构建一个queueSize的阻塞队列
       var queue = new LinkedBlockingQueue<Runnable>(queueSize);
+      //核心数1 最大值1，存活时间5s
       var executor = new ThreadPoolExecutor(1 /*core*/, 1 /*max*/, 5 /*keepalive*/, SECONDS, queue, threadFactory, policy);
+      //允许核心线程超时
       executor.allowCoreThreadTimeOut(true);
       return executor;
    }
 
    /**
     * Create a ThreadPoolExecutor.
-    *
+    * 创建一个线程池执行器
     * @param queue the BlockingQueue to use
     * @param threadName the thread name
     * @param threadFactory an optional ThreadFactory
@@ -143,8 +145,9 @@ public final class UtilityElf
       if (threadFactory == null) {
          threadFactory = new DefaultThreadFactory(threadName, true);
       }
-
+      //核心1，最大值1，存活时间5s
       var executor = new ThreadPoolExecutor(1 /*core*/, 1 /*max*/, 5 /*keepalive*/, SECONDS, queue, threadFactory, policy);
+      //允许核心线程超时
       executor.allowCoreThreadTimeOut(true);
       return executor;
    }
@@ -155,7 +158,7 @@ public final class UtilityElf
 
    /**
     * Get the int value of a transaction isolation level by name.
-    *
+    * 按名称获取事务隔离级别的int值
     * @param transactionIsolationName the name of the transaction isolation level
     * @return the int value of the isolation level or -1
     */
@@ -163,12 +166,13 @@ public final class UtilityElf
    {
       if (transactionIsolationName != null) {
          try {
-            // use the english locale to avoid the infamous turkish locale bug
+            //字符串大写 匹配返回枚举
             final var upperCaseIsolationLevelName = transactionIsolationName.toUpperCase(Locale.ENGLISH);
             return IsolationLevel.valueOf(upperCaseIsolationLevelName).getLevelId();
          } catch (IllegalArgumentException e) {
             // legacy support for passing an integer version of the isolation level
             try {
+               //字符串转换int匹配返回
                final var level = Integer.parseInt(transactionIsolationName);
                for (var iso : IsolationLevel.values()) {
                   if (iso.getLevelId() == level) {
@@ -187,6 +191,9 @@ public final class UtilityElf
       return -1;
    }
 
+   /**
+    * 默认线程工厂
+    */
    public static final class DefaultThreadFactory implements ThreadFactory {
 
       private final String threadName;

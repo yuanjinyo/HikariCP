@@ -89,7 +89,7 @@ public class HikariConfig implements HikariConfigMXBean {
    private static boolean unitTest = false;
 
    // Properties changeable at runtime through the HikariConfigMXBean
-   //可通过HikariConfigMXBean在运行时更改的属性
+   // 可通过 {@link HikariConfigMXBean}在运行时更改的属性
    /**
     * 设置默认目录名称
     * 注意:只有在连接被逐出后池被挂起时，才应更改此值
@@ -1188,7 +1188,7 @@ public class HikariConfig implements HikariConfigMXBean {
 
    /**
     * Copies the state of {@code this} into {@code other}.
-    * 将状态复制到的${Other HikariConfig}
+    * 将状态复制到Other HikariConfig
     * @param other Other {@link HikariConfig} to copy the state to.
     */
    public void copyStateTo(HikariConfig other)

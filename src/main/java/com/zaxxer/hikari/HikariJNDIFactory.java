@@ -26,7 +26,7 @@ import java.util.Properties;
 
 /**
  * A JNDI factory that produces HikariDataSource instances.
- *
+ * 生产HikariDataSource实例的JNDI工厂  implements {@link javax.naming.spi.ObjectFactory}
  * @author Brett Wooldridge
  */
 public class HikariJNDIFactory implements ObjectFactory

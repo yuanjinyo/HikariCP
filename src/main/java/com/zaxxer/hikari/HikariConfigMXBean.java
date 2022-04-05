@@ -18,7 +18,7 @@ package com.zaxxer.hikari;
 
 /**
  * The javax.management MBean for a Hikari pool configuration.
- *
+ * Hikari池配置的MXBean {@link HikariConfig}
  * @author Brett Wooldridge
  */
 public interface HikariConfigMXBean

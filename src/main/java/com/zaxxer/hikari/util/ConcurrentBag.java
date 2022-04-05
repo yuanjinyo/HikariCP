@@ -58,16 +58,42 @@ import static java.util.concurrent.locks.LockSupport.parkNanos;
  */
 public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseable
 {
+   /**
+    * Logger日志
+    */
    private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentBag.class);
-
+   /**
+    * sharedList保存了所有的连接资源
+    * 写时复制ArrayList 线程安全
+    * 适用场景:读多写少
+    * 缺点：
+    *    写时复制机制,在进行写操作时，内存中同时有2个对象(旧对象与新对象)的内存,可能造成频繁的Yong GC与Full GC
+    *    只能保证数据的最终一致性,而不能保证数据的实时一致性
+    */
    private final CopyOnWriteArrayList<T> sharedList;
+   /**
+    * 弱线程局部变量
+    */
    private final boolean weakThreadLocals;
-
+   /**
+    * 本地线程：保存当前线程的本地连接资源
+    */
    private final ThreadLocal<List<Object>> threadList;
+   /**
+    * 对HikariPool的引用, 用于请求创建新连接
+    */
    private final IBagStateListener listener;
+   /**
+    * 当前等待获取连接的线程数
+    */
    private final AtomicInteger waiters;
+   /**
+    * 标记连接池是否关闭的状态
+    */
    private volatile boolean closed;
-
+   /**
+    * 阻塞式一进一出队列
+    */
    private final SynchronousQueue<T> handoffQueue;
 
    public interface IConcurrentBagEntry
@@ -111,7 +137,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    /**
     * The method will borrow a BagEntry from the bag, blocking for the
     * specified timeout if none are available.
-    *
+    * 该方法将从包中借用一个BagEntry，如果没有可用的，则阻塞指定的超时
     * @param timeout how long to wait before giving up, in units of unit
     * @param timeUnit a <code>TimeUnit</code> determining how to interpret the timeout parameter
     * @return a borrowed instance from the bag or null if a timeout occurs
@@ -119,7 +145,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
     */
    public T borrow(long timeout, final TimeUnit timeUnit) throws InterruptedException
    {
-      // Try the thread-local list first
+      //首先尝试线程本地列表
       final var list = threadList.get();
       for (int i = list.size() - 1; i >= 0; i--) {
          final var entry = list.remove(i);
@@ -131,6 +157,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
       }
 
       // Otherwise, scan the shared list ... then poll the handoff queue
+      // 否则，请扫描共享列表...然后轮询切换队列
       final int waiting = waiters.incrementAndGet();
       try {
          for (T bagEntry : sharedList) {

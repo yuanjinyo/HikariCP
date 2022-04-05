@@ -39,11 +39,21 @@ import static com.zaxxer.hikari.pool.HikariPool.POOL_NORMAL;
  */
 public class HikariDataSource extends HikariConfig implements DataSource, Closeable
 {
+   /**
+    * Logger日志
+    */
    private static final Logger LOGGER = LoggerFactory.getLogger(HikariDataSource.class);
-
+   /**
+    * 是否关闭:默认false
+    */
    private final AtomicBoolean isShutdown = new AtomicBoolean();
-
+   /**
+    * fastPathPool
+    */
    private final HikariPool fastPathPool;
+   /**
+    * pool
+    */
    private volatile HikariPool pool;
 
    /**
@@ -51,7 +61,8 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
     * this constructor vs. {@link #HikariDataSource(HikariConfig)} will
     * result in {@link #getConnection()} performance that is slightly lower
     * due to lazy initialization checks.
-    *
+    * 默认构造函数。与{@link HikariDataSource(HikariConfig)}构造函数相比，
+    * 使用此构造函数将导致{getConnection()}性能稍低，这是由于延迟的初始化检查造成的。
     * The first call to {@link #getConnection()} starts the pool.  Once the pool
     * is started, the configuration is "sealed" and no further configuration
     * changes are possible -- except via {@link HikariConfigMXBean} methods.
@@ -74,13 +85,16 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
     */
    public HikariDataSource(HikariConfig configuration)
    {
+      //配置验证
       configuration.validate();
+      //copy configuration to HikariDataSource
       configuration.copyStateTo(this);
 
       LOGGER.info("{} - Starting...", configuration.getPoolName());
+      //init pool and fastPathPool
       pool = fastPathPool = new HikariPool(this);
       LOGGER.info("{} - Start completed.", configuration.getPoolName());
-
+      //seal
       this.seal();
    }
 
@@ -92,20 +106,21 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
    @Override
    public Connection getConnection() throws SQLException
    {
+      //isShutdown
       if (isClosed()) {
          throw new SQLException("HikariDataSource " + this + " has been closed.");
       }
-
+      //有参构造函数不为空
       if (fastPathPool != null) {
          return fastPathPool.getConnection();
       }
-
-      // See http://en.wikipedia.org/wiki/Double-checked_locking#Usage_in_Java
+      //无参构造函数会走这下边
+      //双重检测,需要配合volatile修饰词
       HikariPool result = pool;
-      if (result == null) {
+      if (result == null) {  //第一次检测
          synchronized (this) {
             result = pool;
-            if (result == null) {
+            if (result == null) { //第二次检测
                validate();
                LOGGER.info("{} - Starting...", getPoolName());
                try {
@@ -132,6 +147,7 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
    @Override
    public Connection getConnection(String username, String password) throws SQLException
    {
+      //HikariDataSource不支持该getConnection(username,password)
       throw new SQLFeatureNotSupportedException();
    }
 
@@ -336,14 +352,16 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
 
    /**
     * Shutdown the DataSource and its associated pool.
+    * 关闭数据源及其关联池
     */
    @Override
    public void close()
    {
+      //设置新值 返回旧值
       if (isShutdown.getAndSet(true)) {
          return;
       }
-
+      //
       var p = pool;
       if (p != null) {
          try {
@@ -360,7 +378,7 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
 
    /**
     * Determine whether the HikariDataSource has been closed.
-    *
+    * 如果HikariDataSource已关闭，则为true，否则为false
     * @return true if the HikariDataSource has been closed, false otherwise
     */
    public boolean isClosed()

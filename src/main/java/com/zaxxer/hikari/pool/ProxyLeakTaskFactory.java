@@ -20,7 +20,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A factory for {@link ProxyLeakTask} Runnables that are scheduled in the future to report leaks.
- *
+ * 用于{@link ProxyLeakTask}可运行程序的工厂，计划在未来报告泄漏
  * @author Brett Wooldridge
  * @author Andreas Brenk
  */
