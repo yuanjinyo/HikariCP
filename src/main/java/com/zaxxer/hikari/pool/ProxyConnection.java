@@ -31,7 +31,7 @@ import static com.zaxxer.hikari.SQLExceptionOverride.Override.DO_NOT_EVICT;
 
 /**
  * This is the proxy class for java.sql.Connection.
- *
+ * Connection代理类
  * @author Brett Wooldridge
  */
 public abstract class ProxyConnection implements Connection

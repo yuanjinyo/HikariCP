@@ -1179,7 +1179,7 @@ public class HikariConfig implements HikariConfigMXBean {
    }
 
    /**
-    * 密封
+    * 密封：标记当前数据源已初始化pool完毕
     */
    void seal()
    {

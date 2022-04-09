@@ -36,24 +36,59 @@ import static com.zaxxer.hikari.util.ClockSource.currentTime;
  */
 final class PoolEntry implements IConcurrentBagEntry
 {
+   /**
+    * LOGGER日志
+    */
    private static final Logger LOGGER = LoggerFactory.getLogger(PoolEntry.class);
+   /**
+    * 用来更新链接的状态state
+    */
    private static final AtomicIntegerFieldUpdater<PoolEntry> stateUpdater;
-
+   /**
+    * 连接实例
+    */
    Connection connection;
+   /**
+    * 最后访问时间戳
+    */
    long lastAccessed;
+   /**
+    * 最后借用时间戳
+    */
    long lastBorrowed;
 
+   /**
+    * 连接状态
+    */
    @SuppressWarnings("FieldCanBeLocal")
    private volatile int state = 0;
+   /**
+    * 驱逐状态，删除该链接时标记为true
+    */
    private volatile boolean evict;
-
+   /**
+    * 连接到最大生命周期后主动回收
+    */
    private volatile ScheduledFuture<?> endOfLife;
+   /**
+    * 生命周期
+    */
    private volatile ScheduledFuture<?> keepalive;
-
+   /**
+    * 当前打开的会话
+    */
    private final FastList<Statement> openStatements;
+   /**
+    * 连接池引用
+    */
    private final HikariPool hikariPool;
-
+   /**
+    * 是否只读
+    */
    private final boolean isReadOnly;
+   /**
+    * 是否自动提交事务
+    */
    private final boolean isAutoCommit;
 
    static
@@ -175,15 +210,16 @@ final class PoolEntry implements IConcurrentBagEntry
    Connection close()
    {
       var eol = endOfLife;
+      //取消任务
       if (eol != null && !eol.isDone() && !eol.cancel(false)) {
          LOGGER.warn("{} - maxLifeTime expiration task cancellation unexpectedly returned false for connection {}", getPoolName(), connection);
       }
-
+      //取消任务
       var ka = keepalive;
       if (ka != null && !ka.isDone() && !ka.cancel(false)) {
          LOGGER.warn("{} - keepalive task cancellation unexpectedly returned false for connection {}", getPoolName(), connection);
       }
-
+      //设置null防止泄露
       var con = connection;
       connection = null;
       endOfLife = null;

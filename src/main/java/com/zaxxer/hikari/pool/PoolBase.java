@@ -197,15 +197,17 @@ abstract class PoolBase
 
    void quietlyCloseConnection(final Connection connection, final String closureReason)
    {
+      //不为空
       if (connection != null) {
          try {
             logger.debug("{} - Closing connection {}: {}", poolName, connection, closureReason);
 
             // continue with the close even if setNetworkTimeout() throws
             try (connection) {
+               //设置网络超时时间15s,进行close操作,try-resources语法自动close,真正关闭底层连接
                setNetworkTimeout(connection, SECONDS.toMillis(15));
             } catch (SQLException e) {
-               // ignore
+               //异常忽略
             }
          }
          catch (Exception e) {
@@ -215,7 +217,7 @@ abstract class PoolBase
    }
 
    /**
-    *
+    * 连接是否死亡
     * @param connection
     * @return
     */
@@ -223,25 +225,29 @@ abstract class PoolBase
    {
       try {
          try {
+            //设置网络超时时间为验证超时时间
             setNetworkTimeout(connection, validationTimeout);
-
+            //验证时间转换ms -》 s
             final var validationSeconds = (int) Math.max(1000L, validationTimeout) / 1000;
-
+            //是否使用JDBC4验证
             if (isUseJdbc4Validation) {
+               //执行驱动程序的isValid
                return !connection.isValid(validationSeconds);
             }
-
+            //如果connectionTestQuery配置了就会执行这下面的逻辑
             try (var statement = connection.createStatement()) {
+               //是否支持网络超时
                if (isNetworkTimeoutSupported != TRUE) {
                   setQueryTimeout(statement, validationSeconds);
                }
-
+               //执行SQL
                statement.execute(config.getConnectionTestQuery());
             }
          }
          finally {
+            //验证结束,网络超时时间重新设置回原来的值
             setNetworkTimeout(connection, networkTimeout);
-
+            //符合条件进行回滚
             if (isIsolateInternalQueries && !isAutoCommit) {
                connection.rollback();
             }
@@ -425,7 +431,7 @@ abstract class PoolBase
 
    /**
     * Obtain connection from data source.
-    *
+    * 从数据源获取连接
     * @return a Connection connection
     */
    private Connection newConnection() throws Exception
@@ -436,18 +442,19 @@ abstract class PoolBase
       try {
          var username = config.getUsername();
          var password = config.getPassword();
-
+         //获取connection对象
          connection = (username == null) ? dataSource.getConnection() : dataSource.getConnection(username, password);
          if (connection == null) {
             throw new SQLTransientConnectionException("DataSource returned null unexpectedly");
          }
-
+         //设置连接初始状态
          setupConnection(connection);
          lastConnectionFailure.set(null);
          return connection;
       }
       catch (Exception e) {
          if (connection != null) {
+            //关闭连接
             quietlyCloseConnection(connection, "(Failed to create/setup connection)");
          }
          else if (getLastConnectionFailure() == null) {
@@ -467,7 +474,7 @@ abstract class PoolBase
 
    /**
     * Setup a connection initial state.
-    *
+    * 设置连接初始状态
     * @param connection a Connection
     * @throws ConnectionSetupException thrown if any exception is encountered
     */
